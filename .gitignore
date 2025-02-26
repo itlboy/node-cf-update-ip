@@ -1,0 +1,45 @@
+# 🚀 Bỏ qua thư viện Node.js
+node_modules/
+npm-debug.log*
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# 🔒 Bỏ qua file cấu hình nhạy cảm
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.env.*.local
+
+# 🐳 Docker
+docker-compose.override.yml
+docker-compose.override.yaml
+docker-compose*.log
+Dockerfile~
+
+# 🔄 Bỏ qua cache và log
+*.log
+logs
+*.pid
+*.seed
+*.pid.lock
+.cache
+.pnpm-debug.log
+
+# 🔄 Bỏ qua file hệ thống
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.swn
+
+# 🔍 Bỏ qua VSCode & IDE settings
+.vscode/
+.idea/
+*.iml
+
+# ✅ Bỏ qua file build tạm thời
+dist/
+build/
