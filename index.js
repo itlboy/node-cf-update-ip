@@ -2,22 +2,20 @@ require('dotenv').config();
 const axios = require('axios');
 
 const CLOUDFLARE_API_URL = "https://api.cloudflare.com/client/v4/zones";
-const ZONE_ID = process.env.CF_ZONE_ID;
-const API_TOKEN = process.env.CF_API_TOKEN;
-const RECORD_NAME = process.env.CF_RECORD_NAME;
+const { CF_ZONE_ID: ZONE_ID, CF_API_TOKEN: API_TOKEN, CF_RECORD_NAME: RECORD_NAME } = process.env;
 
-// Lấy IP public từ dịch vụ bên ngoài
+// Get public IP
 async function getPublicIP() {
     try {
         const res = await axios.get('https://api64.ipify.org?format=json');
         return res.data.ip;
     } catch (error) {
-        console.error("❌ Lỗi khi lấy IP Public:", error.message);
+        console.error("❌ Error fetching public IP:", error.message);
         return null;
     }
 }
 
-// Lấy thông tin bản ghi DNS từ Cloudflare
+// Get DNS record from Cloudflare
 async function getDNSRecord() {
     try {
         const response = await axios.get(`${CLOUDFLARE_API_URL}/${ZONE_ID}/dns_records`, {
@@ -25,19 +23,39 @@ async function getDNSRecord() {
             params: { name: RECORD_NAME }
         });
 
-        if (response.data.success && response.data.result.length > 0) {
-            return response.data.result[0];
-        } else {
-            console.error("❌ Không tìm thấy bản ghi DNS!");
-            return null;
-        }
+        return response.data.success && response.data.result.length > 0 ? response.data.result[0] : null;
     } catch (error) {
-        console.error("❌ Lỗi khi lấy DNS Record:", error.response?.data || error.message);
+        console.error("❌ Error fetching DNS record:", error.response?.data || error.message);
         return null;
     }
 }
 
-// Cập nhật bản ghi DNS trên Cloudflare
+// Create a new DNS record
+async function createDNSRecord(ip) {
+    try {
+        const response = await axios.post(
+            `${CLOUDFLARE_API_URL}/${ZONE_ID}/dns_records`,
+            {
+                type: "A",
+                name: RECORD_NAME,
+                content: ip,
+                ttl: 120, // 2 minutes
+                proxied: false
+            },
+            { headers: { Authorization: `Bearer ${API_TOKEN}` } }
+        );
+
+        if (response.data.success) {
+            console.log(`✅ DNS record created successfully: ${ip} for ${RECORD_NAME}`);
+        } else {
+            console.error("❌ Error creating DNS record:", response.data.errors);
+        }
+    } catch (error) {
+        console.error("❌ Error creating DNS record:", error.response?.data || error.message);
+    }
+}
+
+// Update an existing DNS record
 async function updateDNSRecord(recordId, ip) {
     try {
         const response = await axios.put(
@@ -46,39 +64,41 @@ async function updateDNSRecord(recordId, ip) {
                 type: "A",
                 name: RECORD_NAME,
                 content: ip,
-                ttl: 120, // 2 phút
+                ttl: 120, // 2 minutes
                 proxied: false
             },
             { headers: { Authorization: `Bearer ${API_TOKEN}` } }
         );
 
         if (response.data.success) {
-            console.log(`✅ Cập nhật thành công IP ${ip} cho ${RECORD_NAME}`);
+            console.log(`✅ IP updated successfully: ${ip} for ${RECORD_NAME}`);
         } else {
-            console.error("❌ Lỗi khi cập nhật DNS:", response.data.errors);
+            console.error("❌ Error updating DNS:", response.data.errors);
         }
     } catch (error) {
-        console.error("❌ Lỗi khi cập nhật DNS:", error.response?.data || error.message);
+        console.error("❌ Error updating DNS:", error.response?.data || error.message);
     }
 }
 
-// Hàm chính để cập nhật IP
+// Main function to update or create DNS record
 async function updateIP() {
-    console.log("🔄 Đang kiểm tra IP...");
+    console.log("🔄 Checking public IP...");
     const ip = await getPublicIP();
     if (!ip) return;
 
-    const record = await getDNSRecord();
-    if (!record) return;
+    console.log(`📌 Current Public IP: ${ip}`);
 
-    if (record.content !== ip) {
-        console.log(`🔄 IP thay đổi từ ${record.content} → ${ip}, cập nhật lên Cloudflare...`);
+    const record = await getDNSRecord();
+
+    if (!record) {
+        console.log("⚠️ No DNS record found. Creating a new one...");
+        await createDNSRecord(ip);
+    } else if (record.content !== ip) {
+        console.log(`🔄 IP changed from ${record.content} → ${ip}, updating Cloudflare...`);
         await updateDNSRecord(record.id, ip);
-    } else {
-        console.log(`✅ IP không thay đổi (${ip}), không cần cập nhật.`);
     }
 }
 
-// Chạy ngay và lặp lại mỗi 5 phút
+// Run immediately and repeat every 5 minutes
 updateIP();
 setInterval(updateIP, 5 * 60 * 1000);
